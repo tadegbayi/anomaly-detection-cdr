@@ -123,7 +123,14 @@ We ran a side-by-side experiment across contamination rates (0.1%, 0.5%, 1%, 2%,
 - **Agreement (Jaccard similarity):** Very low overlap between IF and LOF predictions (near 0), indicating they find fundamentally different sets of outliers. OneClassSVM overlaps more with IF as contamination increases (up to ~37% at 5%), but finds a distinct boundary-based set.
 - **Visual patterns (PCA):** IsolationForest highlights isolated global outliers; LOF surfaces local density anomalies; OneClassSVM identifies boundary regions. The choice of IF aligns with our goal of detecting unusual call records across the population.
 
-See [model_comparison/anomaly_counts_vs_contamination.png](model_comparison/anomaly_counts_vs_contamination.png) for anomaly counts, [model_comparison/jaccard_vs_contamination.png](model_comparison/jaccard_vs_contamination.png) for pairwise agreement, and [model_comparison/pca_models_cont_0.01.png](model_comparison/pca_models_cont_0.01.png) for visual comparison.
+Embedded model-comparison figures (saved in `model_comparison/`):
+
+![Anomalies detected vs contamination](model_comparison/anomaly_counts_vs_contamination.png)
+
+![Pairwise Jaccard similarity vs contamination](model_comparison/jaccard_vs_contamination.png)
+
+![PCA comparison (contamination=0.01)](model_comparison/pca_models_cont_0.01.png)
+
 
 **Troubleshooting**
 - Unicode/escape errors when specifying Windows paths: use `C:/path/to/file.csv` or prefix with `r"C:\path\to\file.csv"`.
