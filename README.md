@@ -131,6 +131,27 @@ Embedded model-comparison figures (saved in `model_comparison/`):
 
 ![PCA comparison (contamination=0.01)](model_comparison/pca_models_cont_0.01.png)
 
+**Four-Model Evaluation (DBSCAN, IsolationForest, LOF, OneClassSVM)**
+We performed a focused comparison of four unsupervised methods on the same sampled data to evaluate runtime, anomaly counts, pairwise agreement, and simple anomaly statistics (mean `duration` / `charge` among flagged records).
+
+- **Procedure:** fit all four models on the same sample (downsampled for heavy methods), record wall-clock fit/predict time, count flagged anomalies, compute pairwise Jaccard similarity of anomaly sets, and inspect PCA visualizations.
+- **Findings:**
+	- IsolationForest (IF) and LOF often produce similar overall counts for a given contamination setting, but they frequently flag different individual records (low Jaccard overlap) — LOF finds local-density outliers while IF finds globally isolated points.
+	- OneClassSVM tended to flag a larger and less stable set of anomalies without careful kernel/nu tuning.
+	- DBSCAN can find noise points but is sensitive to `eps`/`min_samples` and is computationally expensive on higher-dimensional, larger samples; it is more useful for small, density-driven investigations.
+	- Runtime: IF was the fastest and most predictable on medium samples; OCSVM was the slowest; LOF/DBSCAN costs grow with neighborhood computations.
+
+- **Artifacts:** see `model_comparison/` for contamination sweeps and PCA comparisons; when generated, `unsupervised_comparison/` contains per-model counts, timings and pairwise Jaccard matrices for the DBSCAN+IF+LOF+OCSVM runs.
+
+**Final recommendation**
+For production use on these CDRs we selected **IsolationForest**. Rationale:
+
+- Balanced detection: isolates global outliers that aligned best with manual checks in our samples.
+- Performance and scalability: faster and more predictable than OneClassSVM, and less sensitive to neighborhood parameters than LOF/DBSCAN.
+- Operational control: `contamination` provides a simple, interpretable way to set expected anomaly volume.
+
+LOF and DBSCAN remain useful as complementary checks (local/density anomalies). OCSVM can be revisited with tighter feature sets or more tuning.
+
 
 **Troubleshooting**
 - Unicode/escape errors when specifying Windows paths: use `C:/path/to/file.csv` or prefix with `r"C:\path\to\file.csv"`.
