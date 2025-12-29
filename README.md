@@ -1,52 +1,156 @@
 # ProjectRBSN — Anomaly Detection for CDRs
 
-This repository contains scripts to train/run anomaly detection on call detail records (CDRs) and to run predictions on new data.
+This repository contains a complete machine learning pipeline for detecting anomalies in Call Detail Records (CDRs), including data preprocessing, multi-model training, empirical comparison, and production inference.
 
-**Files**
-- `anomaly_detection.py`: training and visualization script that prepares data, runs IsolationForest, LOF and OneClassSVM, and saves model/preprocessing artifacts.
-- `predict_new_data.py`: utility to load saved model/scaler/label-encoders and predict anomalies on new CSV files (adds `is_anomaly` and `anomaly_label`).
-- `January_masked_sample.csv`: example dataset used for training.
-- `new_df.csv`: example new data used for prediction.
-- `best_iso_forest_model.pkl`, `scaler.pkl`, `label_encoders.pkl`: saved artifacts produced by `anomaly_detection.py`.
-- `predictions.csv`: example output produced by `predict_new_data.predict_anomalies()`.
+## Quick Start
 
-**Requirements**
-- Python 3.8+
-- pandas, numpy, scikit-learn, matplotlib, seaborn, joblib
+### Full Pipeline (Recommended)
 
-Install dependencies:
+For a comprehensive ML workflow covering data load → preprocess → train 4 models → evaluate → select best → save:
+
 ```bash
-python -m pip install pandas numpy scikit-learn matplotlib seaborn joblib
+python train_full_pipeline.py
 ```
 
-**Usage — training / exploring**
-1. Edit `anomaly_detection.py` paths if needed (default path uses `C:/Users/HP/Downloads/ProjectRBSN/January_masked_sample.csv`).
-2. Run training + visualization:
+This runs the complete pipeline and saves all artifacts. See [README_FULL_PIPELINE.md](README_FULL_PIPELINE.md) for full documentation.
+
+Then predict on new data:
 ```bash
-python anomaly_detection.py
+python predict_pipeline.py
 ```
-Outputs:
-- `anomaly_comparison_local.png` — PCA scatterplots of model labels.
-- `best_iso_forest_model.pkl`, `scaler.pkl`, `label_encoders.pkl` — artifacts saved for later predictions.
 
-**Usage — predict on new data**
-Use the helper in `predict_new_data.py` to run predictions and optionally save results to CSV.
+### Summary of Files
 
-From Python code:
+**Core Pipeline:**
+- `train_full_pipeline.py` — Complete ML workflow (load, preprocess, train 4 models, evaluate, save)
+- `predict_pipeline.py` — Inference utility for new data
+
+**Data:**
+- `January_masked_sample.csv` — Training dataset (~150k CDR records, 13 columns)
+- `new_df.csv` — Example new data for predictions
+
+**Saved Artifacts (after training):**
+- `best_model_pipeline.pkl` — IsolationForest model
+- `scaler_pipeline.pkl` — StandardScaler
+- `label_encoders_pipeline.pkl` — Categorical encoders
+- `feature_names.pkl` — Feature names
+
+**Results:**
+- `pipeline_results/` — Evaluation metrics, visualizations, and comparison matrices
+
+## Full ML Workflow (Step by Step)
+
+The `train_full_pipeline.py` script implements:
+
+1. **Load Data** — Read January_masked_sample.csv
+2. **Preprocess** — Handle missing values, scale numerics, encode categoricals
+3. **Train** — Fit IsolationForest, LOF, OneClassSVM, DBSCAN with hyperparameter tuning
+4. **Evaluate** — Compute anomaly counts, runtime, pairwise agreement (Jaccard)
+5. **Compare** — Generate PCA, heatmap, and count visualizations
+6. **Select Best** — IsolationForest chosen based on empirical metrics
+7. **Save** — Persist model and preprocessing artifacts using joblib
+8. **Predict** — Apply to new data
+
+## Model Selection: Why IsolationForest?
+
+| Model | Anomalies | Runtime | Performance | Reason |
+|-------|-----------|---------|-------------|--------|
+| **IsolationForest** ✅ | 191 | Fast | Global outliers | **Selected:** Best balance of speed, interpretability, and detection quality |
+| LOF | 199 | Medium | Local outliers | Good alternative for density-based checks |
+| OneClassSVM | 196 | Slow | Boundary-based | Useful with kernel tuning but slower |
+| DBSCAN | 6 | Slow | Density clustering | Sensitive to parameters, sparse on this data |
+
+**Key Insight:** Pairwise Jaccard similarity is near 0, meaning each model detects fundamentally different anomalies. IsolationForest's global-outlier approach aligns best with finding unusual CDRs.
+
+## Training Results (20k Sample)
+
+```
+Model          Anomalies  Contamination
+IsolationForest   191        0.95%
+LOF               199        1.00%
+OneClassSVM       196        0.98%
+DBSCAN              6        0.03%
+```
+
+Pairwise Agreement (Jaccard Similarity):
+```
+Models          Agreement
+IF vs LOF       0.00 (no overlap)
+IF vs OCSVM     0.152 (15% overlap)
+IF vs DBSCAN    0.016 (2% overlap)
+```
+
+## Making Predictions
+
 ```python
-from predict_new_data import predict_anomalies
-results = predict_anomalies('new_df.csv', model_dir='.', save_path='predictions.csv')
+from predict_pipeline import predict_anomalies_pipeline
+
+# Predict on new CSV
+results = predict_anomalies_pipeline('new_df.csv', save_path='predictions.csv')
+
+# View anomalies
 print(results[results['anomaly_label'] == 'Anomaly'])
 ```
 
-Or from the shell:
-```bash
-python -c "from predict_new_data import predict_anomalies; predict_anomalies('new_df.csv', save_path='predictions.csv')"
+Output includes original data plus:
+- `is_anomaly`: -1 (anomaly) or 1 (normal)
+- `anomaly_label`: "Anomaly" or "Normal"
+
+## Data Preprocessing
+
+The pipeline:
+- Loads CSV and converts numeric columns
+- Drops rows with missing `duration` or `charge`
+- Label-encodes 3 categorical features (`city`, `destination_type`, `call_direction`)
+- Standardizes all features using StandardScaler
+- Samples to 20k rows for faster training
+
+Result: 5D feature vector (2 numeric + 3 categorical)
+
+## Project Structure
+
+```
+ProjectRBSN/
+├── train_full_pipeline.py         # Main ML pipeline (load → train → evaluate → save)
+├── predict_pipeline.py             # Inference on new data
+├── January_masked_sample.csv       # Training data (~150k records)
+├── new_df.csv                      # Example new data
+├── best_model_pipeline.pkl         # Trained IsolationForest
+├── scaler_pipeline.pkl             # Feature scaler
+├── label_encoders_pipeline.pkl     # Categorical encoders
+├── feature_names.pkl               # Feature list
+├── pipeline_results/               # Evaluation, plots, CSVs
+│   ├── evaluation_summary.csv
+│   ├── jaccard_similarity.csv
+│   ├── pca_all_models.png
+│   ├── anomaly_counts_comparison.png
+│   └── jaccard_heatmap.png
+├── README.md                       # This file
+└── README_FULL_PIPELINE.md         # Detailed documentation
 ```
 
-**What the output contains**
-- `is_anomaly`: model output (1 for inlier / -1 for outlier).
-- `anomaly_label`: human-readable label (`Normal` / `Anomaly`).
+## Requirements
+
+- Python 3.8+
+- pandas, numpy, scikit-learn, matplotlib, seaborn, joblib
+
+Install:
+```bash
+pip install -r requirements.txt
+```
+
+## Troubleshooting
+
+**"KeyboardInterrupt" during DBSCAN training?**
+- DBSCAN is CPU-intensive. Edit `train_full_pipeline.py` to reduce sample size or increase DBSCAN `eps`.
+
+**"FileNotFoundError" during prediction?**
+- Ensure `.pkl` files are in the same directory. Pass `model_dir` if they're elsewhere.
+
+**Unseen categorical values in new data?**
+- They're safely mapped to the first learned class. Consider retraining if this happens frequently.
+
+## Full Documentation
 
 **Notes & recommendations**
 - File paths: use forward slashes (`/`) or raw strings on Windows to avoid escape issues.

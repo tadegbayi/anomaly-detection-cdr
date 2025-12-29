@@ -1,0 +1,5 @@
+,IsolationForest,LOF,OneClassSVM,DBSCAN
+IsolationForest,1.0,0.0,0.1518,0.0155
+LOF,0.0,1.0,0.0,0.0
+OneClassSVM,0.1518,0.0,1.0,0.0306
+DBSCAN,0.0155,0.0,0.0306,1.0

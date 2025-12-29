@@ -1,0 +1,5 @@
+Model,Anomalies,Contamination,Pct
+IsolationForest,191,0.0095,0.95%
+LOF,199,0.0100,1.00%
+OneClassSVM,196,0.0098,0.98%
+DBSCAN,6,0.0003,0.03%
