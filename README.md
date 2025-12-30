@@ -65,6 +65,31 @@ The `train_full_pipeline.py` script implements a complete 8-step ML workflow:
 
 ## Files and Structure
 
+## Why Unsupervised Learning
+
+This project uses unsupervised anomaly detection because the available CDR dataset does not include a label or target column that identifies anomalies. Supervised methods require labeled examples of "normal" vs "anomalous" calls to learn a decision boundary — labels that are costly or impractical to obtain for large telecom datasets. Unsupervised approaches detect unusual or rare patterns directly from feature distributions (or density/structure) without ground-truth anomaly labels. This makes them well suited for exploratory detection, early-warning systems, and cases where anomalies are rare, evolving, or unknown ahead of time.
+
+Key practical reasons:
+- No labeled anomalies in `January_masked_sample.csv` (unsupervised needed).
+- Anomaly labeling at scale requires manual review or domain-driven heuristics.
+- Unsupervised algorithms provide fast, low-friction ways to surface candidate anomalies for later human validation or semi-supervised workflows.
+
+## Why These Four Algorithms
+
+We selected four representative algorithms to cover complementary anomaly-detection paradigms and practical trade-offs:
+
+- **IsolationForest (global isolation):** fast, scalable, and interpretable via `contamination`. Good for finding global outliers that are isolated in feature space; suitable for production batch scoring.
+- **Local Outlier Factor (LOF, local density):** detects local density anomalies (points that are unusual relative to neighbors). Useful when anomalies are context-dependent (neighborhood-based).
+- **OneClassSVM (boundary-based):** models a decision boundary around the majority class using kernel methods. Offers a different, boundary-focused perspective useful for complex, nonlinear separations.
+- **DBSCAN (density-based clustering + noise):** finds dense clusters and labels low-density points as noise. Useful when anomalies are isolated noise relative to well-formed clusters.
+
+Why these four and not every method?
+- They represent core methodological families (isolation, local density, boundary, clustering/density), giving complementary views of "anomaly." Comparing them highlights how different definitions of anomaly affect results.
+- All four are available in scikit-learn (no heavy external dependencies) and are easy to serialize/operate in production.
+- They span a useful performance spectrum: `IsolationForest` (fast/production-ready) → `LOF`/`OneClassSVM` (neighborhood/boundary-focused) → `DBSCAN` (cluster/noise detection).
+- More advanced options (deep autoencoders, LSTM-based sequence models, supervised ensembles) were intentionally deferred because they require labeled data, more compute, or significant engineering for this initial baseline.
+
+
 ### Core Scripts
 - **`train_full_pipeline.py`** — Main ML pipeline (load → preprocess → train → evaluate → save)
 - **`predict_pipeline.py`** — Inference utility for new data
