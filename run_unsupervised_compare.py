@@ -124,10 +124,13 @@ def summarize_and_plot(df, Xs, results, out='unsupervised_comparison'):
     n_plot = min(3000, Xp.shape[0])
     idx = np.random.RandomState(1).choice(Xp.shape[0], n_plot, replace=False)
 
-    methods = list(results.keys())
-    fig, axes = plt.subplots(1, len(methods), figsize=(5 * len(methods), 4))
+    # Only plot actual model label arrays (exclude timing keys ending with '_time_s')
+    methods = [k for k in results.keys() if not k.endswith('_time_s')]
+    fig, axes = plt.subplots(1, len(methods), figsize=(5 * max(len(methods), 1), 4))
     if len(methods) == 1:
         axes = [axes]
+    print('Starting PCA plotting...')
+    print('Methods to plot:', methods)
     for ax, m in zip(axes, methods):
         anom = (results[m] == -1).astype(int)
         sc = ax.scatter(Xp[idx, 0], Xp[idx, 1], c=anom[idx], cmap='coolwarm', s=8, alpha=0.7)
@@ -135,8 +138,13 @@ def summarize_and_plot(df, Xs, results, out='unsupervised_comparison'):
         ax.set_xticks([])
         ax.set_yticks([])
     plt.tight_layout()
-    plt.savefig(os.path.join(out, 'pca_unsupervised_compare.png'), bbox_inches='tight')
+    out_path = os.path.join(out, 'pca_unsupervised_compare.png')
+    print('Saving PCA plot to', out_path)
+    plt.savefig(out_path, bbox_inches='tight')
     plt.close()
+
+    # Provide a clear message and returned path for callers
+    print(f'Saved counts, PCA plot to {out} (pca: {out_path})')
 
     print('Saved counts and PCA plot to', out)
 
