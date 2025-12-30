@@ -1,265 +1,342 @@
 # ProjectRBSN — Anomaly Detection for CDRs
 
-This repository contains a complete machine learning pipeline for detecting anomalies in Call Detail Records (CDRs), including data preprocessing, multi-model training, empirical comparison, and production inference.
+This repository contains a complete machine learning pipeline for detecting anomalies in Call Detail Records (CDRs), including data preprocessing, multi-model training with hyperparameter tuning, empirical comparison, and production-ready inference.
 
 ## Quick Start
 
-### Full Pipeline (Recommended)
-
-For a comprehensive ML workflow covering data load → preprocess → train 4 models → evaluate → select best → save:
+### Training the Full Pipeline
 
 ```bash
 python train_full_pipeline.py
 ```
 
-This runs the complete pipeline and saves all artifacts. See [README_FULL_PIPELINE.md](README_FULL_PIPELINE.md) for full documentation.
+This runs the complete pipeline end-to-end:
+- Loads `January_masked_sample.csv` (~150k records)
+- Preprocesses and samples to 20k for training
+- Trains 4 models (IsolationForest, LOF, OneClassSVM, DBSCAN) with hyperparameter tuning
+- Compares models and selects best (IsolationForest)
+- Saves artifacts and generates visualizations in `pipeline_results/`
 
-Then predict on new data:
+**Outputs:**
+- `best_model_pipeline.pkl` — trained IsolationForest model
+- `scaler_pipeline.pkl` — fitted StandardScaler
+- `label_encoders_pipeline.pkl` — categorical encoders
+- `feature_names.pkl` — feature names used
+- `pipeline_results/evaluation_summary.csv` — anomaly counts and metrics
+- `pipeline_results/pca_all_models.png` — visual comparison of models
+- `pipeline_results/jaccard_heatmap.png` — pairwise agreement matrix
+- `pipeline_results/anomaly_counts_comparison.png` — anomaly counts by model
+
+### Making Predictions on New Data
+
 ```bash
 python predict_pipeline.py
 ```
 
-### Summary of Files
-
-**Core Pipeline:**
-- `train_full_pipeline.py` — Complete ML workflow (load, preprocess, train 4 models, evaluate, save)
-- `predict_pipeline.py` — Inference utility for new data
-
-**Data:**
-- `January_masked_sample.csv` — Training dataset (~150k CDR records, 13 columns)
-- `new_df.csv` — Example new data for predictions
-
-**Saved Artifacts (after training):**
-- `best_model_pipeline.pkl` — IsolationForest model
-- `scaler_pipeline.pkl` — StandardScaler
-- `label_encoders_pipeline.pkl` — Categorical encoders
-- `feature_names.pkl` — Feature names
-
-**Results:**
-- `pipeline_results/` — Evaluation metrics, visualizations, and comparison matrices
-
-## Full ML Workflow (Step by Step)
-
-The `train_full_pipeline.py` script implements:
-
-1. **Load Data** — Read January_masked_sample.csv
-2. **Preprocess** — Handle missing values, scale numerics, encode categoricals
-3. **Train** — Fit IsolationForest, LOF, OneClassSVM, DBSCAN with hyperparameter tuning
-4. **Evaluate** — Compute anomaly counts, runtime, pairwise agreement (Jaccard)
-5. **Compare** — Generate PCA, heatmap, and count visualizations
-6. **Select Best** — IsolationForest chosen based on empirical metrics
-7. **Save** — Persist model and preprocessing artifacts using joblib
-8. **Predict** — Apply to new data
-
-## Model Selection: Why IsolationForest?
-
-| Model | Anomalies | Runtime | Performance | Reason |
-|-------|-----------|---------|-------------|--------|
-| **IsolationForest** ✅ | 191 | Fast | Global outliers | **Selected:** Best balance of speed, interpretability, and detection quality |
-| LOF | 199 | Medium | Local outliers | Good alternative for density-based checks |
-| OneClassSVM | 196 | Slow | Boundary-based | Useful with kernel tuning but slower |
-| DBSCAN | 6 | Slow | Density clustering | Sensitive to parameters, sparse on this data |
-
-**Key Insight:** Pairwise Jaccard similarity is near 0, meaning each model detects fundamentally different anomalies. IsolationForest's global-outlier approach aligns best with finding unusual CDRs.
-
-## Training Results (20k Sample)
-
-```
-Model          Anomalies  Contamination
-IsolationForest   191        0.95%
-LOF               199        1.00%
-OneClassSVM       196        0.98%
-DBSCAN              6        0.03%
-```
-
-Pairwise Agreement (Jaccard Similarity):
-```
-Models          Agreement
-IF vs LOF       0.00 (no overlap)
-IF vs OCSVM     0.152 (15% overlap)
-IF vs DBSCAN    0.016 (2% overlap)
-```
-
-## Making Predictions
-
+Or from Python:
 ```python
 from predict_pipeline import predict_anomalies_pipeline
 
 # Predict on new CSV
-results = predict_anomalies_pipeline('new_df.csv', save_path='predictions.csv')
+results = predict_anomalies_pipeline(
+    'new_df.csv',
+    model_dir='.',
+    save_path='predictions_pipeline.csv'
+)
 
-# View anomalies
-print(results[results['anomaly_label'] == 'Anomaly'])
+# View detected anomalies
+anomalies = results[results['anomaly_label'] == 'Anomaly']
+print(f"Detected {len(anomalies)} anomalies")
+print(anomalies[['duration', 'charge', 'city', 'call_direction']])
 ```
 
-Output includes original data plus:
-- `is_anomaly`: -1 (anomaly) or 1 (normal)
-- `anomaly_label`: "Anomaly" or "Normal"
+## ML Workflow Overview
+
+The `train_full_pipeline.py` script implements a complete 8-step ML workflow:
+
+1. **Load Data** — Read January_masked_sample.csv (~150k records)
+2. **Preprocess** — Handle missing values, convert types, scale numerics, encode categoricals
+3. **Sample** — Downsample to 20k for training speed
+4. **Train** — Fit 4 unsupervised models with hyperparameter tuning
+5. **Evaluate** — Compute anomaly counts, runtime, pairwise agreement (Jaccard)
+6. **Compare** — Visualize predictions and agreement matrices
+7. **Select** — Choose IsolationForest as best-performing model
+8. **Predict** — Apply saved model to new data
+
+## Files and Structure
+
+### Core Scripts
+- **`train_full_pipeline.py`** — Main ML pipeline (load → preprocess → train → evaluate → save)
+- **`predict_pipeline.py`** — Inference utility for new data
+
+### Data
+- **`January_masked_sample.csv`** — Training dataset (~150k CDR records, 13 columns)
+- **`new_df.csv`** — Example new data for predictions
+
+### Saved Artifacts (after training)
+- **`best_model_pipeline.pkl`** — IsolationForest model
+- **`scaler_pipeline.pkl`** — StandardScaler for feature scaling
+- **`label_encoders_pipeline.pkl`** — Categorical encoders dict
+- **`feature_names.pkl`** — Feature list
+
+### Results and Visualizations
+- **`pipeline_results/`** — Generated outputs from training:
+  - `evaluation_summary.csv` — Model metrics
+  - `jaccard_similarity.csv` — Pairwise agreement matrix
+  - `pca_all_models.png` — PCA scatter plots comparing models
+  - `anomaly_counts_comparison.png` — Anomaly counts by model
+  - `jaccard_heatmap.png` — Agreement heatmap
 
 ## Data Preprocessing
 
-The pipeline:
-- Loads CSV and converts numeric columns
-- Drops rows with missing `duration` or `charge`
-- Label-encodes 3 categorical features (`city`, `destination_type`, `call_direction`)
-- Standardizes all features using StandardScaler
-- Samples to 20k rows for faster training
+The pipeline handles typical CDR data issues:
 
-Result: 5D feature vector (2 numeric + 3 categorical)
+1. **Missing Values:** Drop rows with missing `duration` or `charge`
+2. **Type Conversion:** Convert `duration` and `charge` to float
+3. **Categorical Encoding:** Label-encode 3 categorical features (`city`, `destination_type`, `call_direction`)
+4. **Feature Scaling:** Standardize all features (mean=0, std=1) using StandardScaler
+5. **Sampling:** Downsample 150k records to 20k for manageable training
 
-## Project Structure
+**Result:** 5-dimensional feature vector (2 numeric + 3 encoded categorical)
+
+## Model Training and Comparison
+
+### Four Models Evaluated
+
+| Model | Approach | Anomalies* | Strengths | Limitations |
+|-------|----------|------------|-----------|-------------|
+| **IsolationForest** ✅ | Isolation-based | 191 | Fast, interpretable, detects global outliers | May miss local density anomalies |
+| **LOF** | Density-based | 199 | Finds local outliers, neighborhood-aware | Sensitive to `n_neighbors`, slower than IF |
+| **OneClassSVM** | Boundary-based | 196 | Flexible kernels, boundary detection | Slow on large datasets, hyperparameter-sensitive |
+| **DBSCAN** | Density clustering | 6 | Pure density-driven, pure noise detection | Highly sensitive to `eps`/`min_samples` |
+
+*Results on 20k sample at ~1% contamination
+
+### Training Results (20k sample)
 
 ```
-ProjectRBSN/
-├── train_full_pipeline.py         # Main ML pipeline (load → train → evaluate → save)
-├── predict_pipeline.py             # Inference on new data
-├── January_masked_sample.csv       # Training data (~150k records)
-├── new_df.csv                      # Example new data
-├── best_model_pipeline.pkl         # Trained IsolationForest
-├── scaler_pipeline.pkl             # Feature scaler
-├── label_encoders_pipeline.pkl     # Categorical encoders
-├── feature_names.pkl               # Feature list
-├── pipeline_results/               # Evaluation, plots, CSVs
-│   ├── evaluation_summary.csv
-│   ├── jaccard_similarity.csv
-│   ├── pca_all_models.png
-│   ├── anomaly_counts_comparison.png
-│   └── jaccard_heatmap.png
-├── README.md                       # This file
-└── README_FULL_PIPELINE.md         # Detailed documentation
+Model            Anomalies  Contamination
+IsolationForest  191        0.95%  ✅ Selected
+LOF              199        1.00%
+OneClassSVM      196        0.98%
+DBSCAN           6          0.03%
 ```
 
-## Requirements
+### Pairwise Agreement (Jaccard Similarity)
 
-- Python 3.8+
-- pandas, numpy, scikit-learn, matplotlib, seaborn, joblib
+```
+                 IsolationForest  LOF   OneClassSVM  DBSCAN
+IsolationForest  1.0000           0.0   0.1518       0.0155
+LOF              0.0              1.0   0.0          0.0
+OneClassSVM      0.1518           0.0   1.0          0.0306
+DBSCAN           0.0155           0.0   0.0306       1.0
+```
+
+**Key Insight:** Very low overlap between methods → they detect fundamentally different types of anomalies. IsolationForest and LOF have zero overlap, showing they find completely different records as anomalous.
+
+## Why IsolationForest Was Selected
+
+Based on empirical evaluation across multiple dimensions:
+
+1. **Detection Quality:** IF and LOF produced similar anomaly counts (~1%), but IF's global-outlier approach aligned better with operational needs (finding unusual CDRs across the population).
+
+2. **Performance & Scalability:** IF trained fastest and predicted consistently. OneClassSVM was much slower; DBSCAN flagged only 6 anomalies, indicating parameter oversensitivity.
+
+3. **Operational Control:** The `contamination` parameter is intuitive and easily adjustable for setting expected anomaly volume (we used `contamination=0.01` = 1%).
+
+4. **Interpretability:** IF correctly isolates high-duration and high-charge outliers that manual inspection confirmed as unusual.
+
+5. **Production Suitability:** Fast fit/predict makes it ideal for batch inference on large datasets.
+
+## Prediction API
+
+### Function Signature
+```python
+def predict_anomalies_pipeline(new_data_path, model_dir='.', save_path=None):
+    """
+    Load trained pipeline artifacts and predict anomalies on new CSV data.
+    
+    Parameters:
+    -----------
+    new_data_path : str
+        Path to new CSV file (must have: duration, charge, city, destination_type, call_direction)
+    model_dir : str
+        Directory containing model artifacts (default: current directory)
+    save_path : str, optional
+        If provided, save results to CSV
+    
+    Returns:
+    --------
+    pd.DataFrame
+        Input data with added is_anomaly and anomaly_label columns
+    """
+```
+
+### Example
+```python
+from predict_pipeline import predict_anomalies_pipeline
+
+# Predict
+results = predict_anomalies_pipeline('my_new_data.csv', save_path='my_predictions.csv')
+
+# Filter anomalies
+anomalies = results[results['anomaly_label'] == 'Anomaly']
+print(f"Found {len(anomalies)} anomalies")
+print(anomalies[['duration', 'charge', 'city']])
+```
+
+### Output Format
+
+After prediction, results include all original columns plus:
+- `is_anomaly`: Model output (-1 for anomaly, 1 for normal)
+- `anomaly_label`: Human-readable label ("Anomaly" or "Normal")
+
+Example:
+```
+call_date_Month  call_date_Day  duration  charge  city      destination_type  is_anomaly  anomaly_label
+January          1             50        19.05   LAGOS     Local              1           Normal
+January          2             5000      2500.00 KANO      International     -1          Anomaly
+```
+
+## Running the Full ML Workflow
+
+### Step-by-Step
+
+```bash
+# 1. Train the pipeline (loads data, trains 4 models, saves best)
+python train_full_pipeline.py
+
+# 2. Review results
+cat pipeline_results/evaluation_summary.csv
+
+# 3. Make predictions on new data
+python predict_pipeline.py
+
+# 4. Check predictions
+cat predictions_pipeline.csv | grep Anomaly
+```
+
+### Hyperparameter Tuning
+
+The pipeline uses conservative hyperparameter grids for speed. To expand the search space, edit `train_full_pipeline.py` and add more values to the grids:
+
+```python
+param_grids = {
+    'IsolationForest': {'n_estimators': [100, 200], 'contamination': [0.01, 0.02], ...},
+    'LOF': {'n_neighbors': [20, 30, 40], 'contamination': [0.01, 0.02]},
+    'OneClassSVM': {'nu': [0.01, 0.05], 'kernel': ['rbf', 'sigmoid'], 'gamma': ['scale', 'auto']},
+    'DBSCAN': {'eps': [0.5, 1.0, 2.0], 'min_samples': [5, 10]}
+}
+```
+
+Note: This will increase training time significantly.
+
+## Troubleshooting
+
+### "KeyboardInterrupt" during training
+- DBSCAN is CPU-intensive. Reduce sample size in `train_full_pipeline.py` (around line 85).
+- Increase DBSCAN `eps` parameter to reduce neighborhood search cost.
+
+### "FileNotFoundError" when predicting
+- Ensure all `.pkl` files are in the same directory as `predict_pipeline.py`.
+- Pass `model_dir` parameter if artifacts are elsewhere:
+  ```python
+  predict_anomalies_pipeline('data.csv', model_dir='./saved_models/')
+  ```
+
+### "Missing required column" error
+- New data must have columns: `duration`, `charge`, `city`, `destination_type`, `call_direction`.
+- Check spelling and capitalization.
+
+### Unseen categorical values in new data
+- The prediction script maps unseen values to the first class learned by the label encoder.
+- This is safe but may introduce bias; consider retraining if many unseen values appear frequently.
+
+### Unicode/escape errors on Windows
+- Use forward slashes: `C:/path/to/file.csv`
+- Or use raw strings: `r"C:\path\to\file.csv"`
+
+## Reproducibility
+
+All hyperparameters are logged in script output. To reproduce results:
+
+1. Use the same `January_masked_sample.csv` (provided)
+2. Random seeds are set (random_state=42 throughout)
+3. Use the same Python packages (see `requirements.txt`)
+
+Run:
+```bash
+python train_full_pipeline.py
+```
+
+Expected result: IsolationForest with ~191 anomalies on the 20k sample.
+
+## Dependencies
+
+```
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+joblib
+```
 
 Install:
 ```bash
 pip install -r requirements.txt
 ```
 
-## Troubleshooting
+## Exploratory Data Analysis (Optional)
 
-**"KeyboardInterrupt" during DBSCAN training?**
-- DBSCAN is CPU-intensive. Edit `train_full_pipeline.py` to reduce sample size or increase DBSCAN `eps`.
+Before running the full pipeline, you can explore the data with these snippets:
 
-**"FileNotFoundError" during prediction?**
-- Ensure `.pkl` files are in the same directory. Pass `model_dir` if they're elsewhere.
-
-**Unseen categorical values in new data?**
-- They're safely mapped to the first learned class. Consider retraining if this happens frequently.
-
-## Full Documentation
-
-**Notes & recommendations**
-- File paths: use forward slashes (`/`) or raw strings on Windows to avoid escape issues.
-- Encoding: `predict_new_data` maps unseen categorical values to the first class learned by the `LabelEncoder`. Consider updating this behavior if you prefer a different fallback (e.g., `Unknown` or retraining encoders).
-- Missing columns in new data will raise an error — ensure `duration`, `charge`, `city`, `destination_type`, `call_direction` exist.
-- If you re-run training with a different preprocessing pipeline, remember to update the saved artifacts and `model_dir` used by `predict_new_data`.
-
-**Exploratory Data Analysis (EDA)**
-The following EDA steps and visualizations are useful to understand the data distribution and spot obvious anomalies before modeling.
-
-- Univariate distributions (histograms / KDE) for numeric features such as `duration` and `charge` to inspect skew and heavy tails.
-- Boxplots per `city` or `destination_type` to find groups with outlying behavior.
-- Countplots for categorical features (`city`, `destination_type`, `call_direction`) to check class imbalance.
-- Correlation matrix / heatmap for numeric features to check multicollinearity before scaling.
-- PCA scatterplot (2 components) colored by model labels — useful for visual comparison (one example output: `anomaly_comparison_local.png`).
-
-Example snippets (run in a Python REPL or notebook):
 ```python
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
 df = pd.read_csv('January_masked_sample.csv')
-# histogram for duration
+
+# Histogram for duration distribution
 sns.histplot(df['duration'].astype(float), bins=80, kde=True)
 plt.savefig('eda_duration_hist.png')
 
-# boxplot of charge by city
-plt.figure(figsize=(12,6))
+# Boxplot of charge by city
+plt.figure(figsize=(12, 6))
 sns.boxplot(data=df, x='city', y='charge')
 plt.xticks(rotation=45)
 plt.savefig('eda_charge_by_city.png')
 
-# correlation heatmap
-num_cols = ['duration','charge']
+# Correlation heatmap
+num_cols = ['duration', 'charge']
 sns.heatmap(df[num_cols].corr(), annot=True)
 plt.savefig('eda_corr.png')
 ```
 
-Collect and save these figures in a folder (e.g., `eda/`) and include them in reports shared with teammates.
+## Next Steps
 
-Preview of generated EDA figures (saved in `eda/`):
+1. **Validation:** Test predictions on manually labeled data to compute precision/recall
+2. **Tuning:** Expand hyperparameter grids and retrain if needed
+3. **Monitoring:** Log predictions and retrain periodically to detect data drift
+4. **Ensemble:** Consider averaging predictions from multiple models
+5. **Deployment:** Package as microservice or batch job
 
-![Duration distribution](eda/eda_duration_hist.png)
+## Alternative Models for Specific Use Cases
 
-![Charge distribution](eda/eda_charge_hist.png)
+- **LOF:** Use for complementary local-density checks (100% different anomalies than IF)
+- **DBSCAN:** Reconfigure `eps`/`min_samples` for density-based clustering on targeted subsets
+- **OneClassSVM:** Useful if kernel-based boundaries are required; requires careful tuning
 
-![Charge by top cities](eda/eda_charge_by_city.png)
+## Project Status
 
-![Call direction counts](eda/eda_call_direction_counts.png)
+- ✅ Data loading and preprocessing
+- ✅ Multi-model training with hyperparameter tuning
+- ✅ Model comparison and empirical selection
+- ✅ Production-ready inference
+- ✅ Artifact persistence (joblib)
+- ✅ Comprehensive documentation
 
-![Numeric correlation heatmap](eda/eda_corr.png)
+---
 
-![PCA of features colored by duration](eda/eda_pca_duration.png)
-
-
-**Model Selection — Why IsolationForest was chosen**
-We evaluated three approaches in `anomaly_detection.py`: `IsolationForest`, `LocalOutlierFactor` (LOF), and `OneClassSVM` (OCSVM). The final decision to use `IsolationForest` for production predictions was based on the following considerations:
-
-- **Detection goal (global vs local outliers):** IsolationForest is designed for global outliers which match our operational goal of finding unusual call records across the dataset. LOF identifies local density anomalies which can be useful for fine-grained, neighborhood-level detection but is more sensitive to parameter `n_neighbors` and duplicate values.
-- **Scalability and performance:** IsolationForest scales well to larger datasets and has faster fit/predict times than OCSVM. OCSVM can be computationally expensive and sensitive to kernel/hyperparameters (`gamma`, `nu`) on large, noisy CDR datasets.
-- **Robustness to feature scaling:** After consistent scaling, IsolationForest performs reliably across numeric and encoded categorical features; OCSVM requires careful kernel tuning and LOF can be affected by duplicate rows (the implementation warns about duplicates).
-- **Interpretability & control:** IsolationForest supports a `contamination` parameter (estimated fraction of outliers) which provided an easy, interpretable lever during experiments. This matched our operational requirement to set an expected anomaly budget (we used `contamination=0.01` in experiments).
-- **Empirical evaluation:** We compared models by:
-	- Visual inspection of PCA scatterplots colored by predicted labels (see `anomaly_comparison_local.png`).
-	- Checking the number of flagged records and reviewing samples to validate that flagged records correspond to unusual durations/charges or unlikely category combinations.
-	- Observing runtime/memory characteristics on the sample subset.
-
-In short, IsolationForest offered the best trade-off between detection quality for global outliers, runtime performance, and operational control. LOF remains available in the repo for local-density checks and further experimentation; OCSVM can be revisited with smaller feature sets or different kernels if boundary-based detection is later required.
-
-**Empirical Model Comparison**
-We ran a side-by-side experiment across contamination rates (0.1%, 0.5%, 1%, 2%, 5%) on a 20,000-record sample. The results show:
-- **Anomaly counts:** IsolationForest and LOF produce nearly identical counts across all contamination levels, while OneClassSVM consistently flags more records (e.g., 296 vs. 199 for IF at 1% contamination).
-- **Agreement (Jaccard similarity):** Very low overlap between IF and LOF predictions (near 0), indicating they find fundamentally different sets of outliers. OneClassSVM overlaps more with IF as contamination increases (up to ~37% at 5%), but finds a distinct boundary-based set.
-- **Visual patterns (PCA):** IsolationForest highlights isolated global outliers; LOF surfaces local density anomalies; OneClassSVM identifies boundary regions. The choice of IF aligns with our goal of detecting unusual call records across the population.
-
-Embedded model-comparison figures (saved in `model_comparison/`):
-
-![Anomalies detected vs contamination](model_comparison/anomaly_counts_vs_contamination.png)
-
-![Pairwise Jaccard similarity vs contamination](model_comparison/jaccard_vs_contamination.png)
-
-![PCA comparison (contamination=0.01)](model_comparison/pca_models_cont_0.01.png)
-
-**Four-Model Evaluation (DBSCAN, IsolationForest, LOF, OneClassSVM)**
-We performed a focused comparison of four unsupervised methods on the same sampled data to evaluate runtime, anomaly counts, pairwise agreement, and simple anomaly statistics (mean `duration` / `charge` among flagged records).
-
-- **Procedure:** fit all four models on the same sample (downsampled for heavy methods), record wall-clock fit/predict time, count flagged anomalies, compute pairwise Jaccard similarity of anomaly sets, and inspect PCA visualizations.
-- **Findings:**
-	- IsolationForest (IF) and LOF often produce similar overall counts for a given contamination setting, but they frequently flag different individual records (low Jaccard overlap) — LOF finds local-density outliers while IF finds globally isolated points.
-	- OneClassSVM tended to flag a larger and less stable set of anomalies without careful kernel/nu tuning.
-	- DBSCAN can find noise points but is sensitive to `eps`/`min_samples` and is computationally expensive on higher-dimensional, larger samples; it is more useful for small, density-driven investigations.
-	- Runtime: IF was the fastest and most predictable on medium samples; OCSVM was the slowest; LOF/DBSCAN costs grow with neighborhood computations.
-
-- **Artifacts:** see `model_comparison/` for contamination sweeps and PCA comparisons; when generated, `unsupervised_comparison/` contains per-model counts, timings and pairwise Jaccard matrices for the DBSCAN+IF+LOF+OCSVM runs.
-
-**Final recommendation**
-For production use on these CDRs we selected **IsolationForest**. Rationale:
-
-- Balanced detection: isolates global outliers that aligned best with manual checks in our samples.
-- Performance and scalability: faster and more predictable than OneClassSVM, and less sensitive to neighborhood parameters than LOF/DBSCAN.
-- Operational control: `contamination` provides a simple, interpretable way to set expected anomaly volume.
-
-LOF and DBSCAN remain useful as complementary checks (local/density anomalies). OCSVM can be revisited with tighter feature sets or more tuning.
-
-
-**Troubleshooting**
-- Unicode/escape errors when specifying Windows paths: use `C:/path/to/file.csv` or prefix with `r"C:\path\to\file.csv"`.
-- `FileNotFoundError` when loading model artifacts: ensure the `.pkl` files are present in `model_dir` or pass the correct `model_dir` to `predict_anomalies()`.
-- If LOF warns about duplicate values, increase `n_neighbors` in `anomaly_detection.py`.
-
-
+**Last Updated:** December 2025
