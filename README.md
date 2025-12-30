@@ -1,5 +1,7 @@
 # ProjectRBSN — Anomaly Detection for CDRs
 
+This README now includes two concise additions: (1) an explanation of why we use unsupervised methods — the dataset lacks labeled anomaly/target columns — and (2) a short justification for the four chosen algorithms (IsolationForest, LOF, OneClassSVM, DBSCAN). These additions help visitors quickly understand the design choices; see the "Why Unsupervised Learning" and "Why These Four Algorithms" sections below.
+
 This repository contains a complete machine learning pipeline for detecting anomalies in Call Detail Records (CDRs), including data preprocessing, multi-model training with hyperparameter tuning, empirical comparison, and production-ready inference.
 
 ## Quick Start
